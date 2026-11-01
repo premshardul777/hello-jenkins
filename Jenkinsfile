@@ -7,15 +7,38 @@ def run(cmd) {
 }
 
 def awsRun(cmd) {
-  withCredentials([
-    string(credentialsId: 'aws-key-id', variable: 'AWS_ACCESS_KEY_ID'),
-    string(credentialsId: 'aws-secret', variable: 'AWS_SECRET_ACCESS_KEY')
-  ]) { run(cmd) }
+    withCredentials([
+        string(credentialsId: 'aws-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+        string(credentialsId: 'aws-secret', variable: 'AWS_SECRET_ACCESS_KEY')
+    ]) {
+        withEnv(["AWS_COMMAND=${cmd}"]) {
+            run '''
+                docker run --rm ^
+                -e AWS_ACCESS_KEY_ID ^
+                -e AWS_SECRET_ACCESS_KEY ^
+                -e AWS_DEFAULT_REGION=ap-south-1 ^
+                amazon/aws-cli:latest ^
+                sh -c "$AWS_COMMAND"
+            '''
+        }
+    }
 }
 
 def ecrLogin() {
-  awsRun "aws ecr get-login-password --region ${env.REGION} | " +
-         "docker login --username AWS --password-stdin ${env.REGISTRY}"
+    withCredentials([
+        string(credentialsId: 'aws-key-id', variable: 'AWS_ACCESS_KEY_ID'),
+        string(credentialsId: 'aws-secret', variable: 'AWS_SECRET_ACCESS_KEY')
+    ]) {
+        run """
+            docker run --rm ^
+            -e AWS_ACCESS_KEY_ID ^
+            -e AWS_SECRET_ACCESS_KEY ^
+            -e AWS_DEFAULT_REGION=${env.REGION} ^
+            amazon/aws-cli:latest ^
+            ecr get-login-password --region ${env.REGION} |
+            docker login --username AWS --password-stdin ${env.REGISTRY}
+        """
+    }
 }
 
 def deploy() {
